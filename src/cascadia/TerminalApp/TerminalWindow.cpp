@@ -1084,7 +1084,7 @@ namespace winrt::TerminalApp::implementation
             }
             else if (!actions.empty())
             {
-                _root->ProcessStartupActions(actions, _appArgs->CurrentDirectory(), _appArgs->CurrentEnvironment());
+                _root->ProcessStartupActions(actions, _appArgs->CurrentDirectory(), _appArgs->CurrentEnvironment(), parsedArgs.GetBackground());
             }
         }
 
