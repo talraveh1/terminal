@@ -1,6 +1,26 @@
 # Windows Terminal background tabs
 
-Milestone 0, prepared 2026-10-22; milestone 1 authorized 2026-10-23. The preparation findings below are historical. All seven requested VS components are now installed; the build and side-by-side registration are authorized, while launcher changes and window tests remain deferred. This is a local preparation branch, not a tested binary. No build, installation, desktop probe, settings change, certificate operation or GitHub write was performed. Brooke owns the independent review. Warn the user before the next turn's full Terminal build; launcher integration and window/input qualification follow later.
+Milestone 1 stopped after two build attempts on 2026-10-23; no installable Terminal package was produced. All seven requested VS components are installed. No Dev package was registered, no Terminal window was opened, and the agents launcher and stable Terminal settings were unchanged. Brooke owns the independent review. The milestone 0 inventory below is historical; build and installation commands remain instructions, not evidence of a successful installation.
+
+## Milestone 1 build result
+
+The checkout/remotes guide update was pushed to the user's fork as `732eb9ed0`. The build ran in PowerShell 7 using the VS 2022 developer environment, the two NuGet restores from `Invoke-OpenConsoleBuild`, and MSBuild on `OpenConsole.slnx` targeting `Terminal\CascadiaPackage`. Both attempts ran at BelowNormal priority with `/m:6`, `/nr:false`, `/p:CL_MPCount=1`, Release x64, Dev branding and unsigned MSIX packaging. Sampled compiler/MSBuild processes were BelowNormal. No simultaneous second build was started, and no build process remained afterward.
+
+Attempt 1 took **97.568 seconds** including restore. Dependency setup failed because `dep/vcpkg-overlay-triplets/x64-windows-static.cmake` pinned `VCPKG_PLATFORM_TOOLSET v145`, unavailable in VS 2022. The single-line setup correction changes that x64 triplet to **v143**; the PR's code is unchanged. Attempt 2 took **355.818 seconds** including cached restore (**350.53 seconds** reported by MSBuild). Dependency builds succeeded, but the Settings Editor XAML compilation failed:
+
+```text
+C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\XamlCompiler\Microsoft.Windows.UI.Xaml.Common.targets(354,5):
+Xaml Internal Error error WMC9999: Value cannot be null.
+Parameter name: name
+Project: src\cascadia\TerminalSettingsEditor\Microsoft.Terminal.Settings.Editor.vcxproj
+Target: MarkupCompilePass1
+```
+
+The subsequent `Microsoft.DesktopBridge.targets(499,5)` error `MSB4181: The "MSBuild" task returned false but did not log an error` is a consequence, not the first failure. Final MSBuild totals were **5 warnings, 2 errors**. The cause of the XAML compiler's null value is not established. The two-attempt limit was reached; no third build or installation was attempted. Completing this build with the current setup may require further toolchain investigation.
+
+Local evidence under `D:\forks\terminal\bg-artifacts`: `build-1.binlog`, `build-2.binlog`, `build-1-result.json`, `build-2-result.json`, and `build-2-full.log` (diagnostic text replayed from the second binary log). The `.log` PowerShell transcripts record wrapper output only; use the `.binlog` files for authoritative build output. Build artifacts and logs are excluded locally through `.git/info/exclude`, not committed. `build.ps1` retains the exact second-attempt commands. The Dev executable/alias and `--background` acceptance could not be verified because no package was built. The ordinary `--help` path calls `MessageBoxW`, so it must not be used for a no-window check. A parser-only check would be needed after a successful build.
+
+The installed stable package remained `Microsoft.WindowsTerminal_1.25.2733.0_x64__8wekyb3d8bbwe`. Its settings SHA-256 before and after this work was `F9FD2A0B6D77F497D6B149C0B0E01DA5AC51888634EA2DEC9109185F9C459986`.
 
 ## Source and branch
 
