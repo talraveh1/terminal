@@ -3,6 +3,9 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <shellapi.h>
+#include "BackgroundInvocation.h"
+#pragma comment(lib, "shell32.lib")
 #include <wil/stl.h>
 #include <wil/resource.h>
 #include <wil/win32_helpers.h>
@@ -32,5 +35,23 @@ int __stdcall wWinMain(HINSTANCE, HINSTANCE, LPWSTR pCmdLine, int)
 
     // Go!
     wil::unique_process_information pi;
-    return !CreateProcessW(module.c_str(), cmdline.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi);
+    if (!CreateProcessW(module.c_str(), cmdline.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &si, &pi))
+    {
+        return 1;
+    }
+    int argc = 0;
+    const wil::unique_hlocal_ptr<wchar_t*> argv{ CommandLineToArgvW(GetCommandLineW(), &argc) };
+    if (argv && IsBackgroundInvocation(argc, argv.get()))
+    {
+        // Background invocations only dispatch to an existing window, so this
+        // process is short-lived. Preserve the host's missing-window result.
+        if (WaitForSingleObject(pi.hProcess, INFINITE) != WAIT_OBJECT_0)
+        {
+            return 1;
+        }
+        DWORD code = 1;
+        GetExitCodeProcess(pi.hProcess, &code);
+        return static_cast<int>(code);
+    }
+    return 0;
 }

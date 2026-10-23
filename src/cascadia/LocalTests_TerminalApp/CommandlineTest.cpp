@@ -8,6 +8,7 @@
 #include "../TerminalApp/TerminalPage.h"
 #include "../TerminalApp/AppLogic.h"
 #include "../TerminalApp/AppCommandlineArgs.h"
+#include "../wt/BackgroundInvocation.h"
 
 using namespace WEX::Logging;
 using namespace WEX::Common;
@@ -1934,6 +1935,22 @@ namespace TerminalAppLocalTests
 
     void CommandlineTest::TestBackground()
     {
+        for (const auto target : { L"0", L"last", L"42", L"missing-window" })
+        {
+            const wchar_t* argv[] = { L"wt.exe", L"-w", target, L"--background", L"new-tab" };
+            VERIFY_IS_TRUE(IsBackgroundInvocation(5, argv));
+            AppCommandlineArgs targeted{};
+            const std::vector<winrt::hstring> targetArgs{ argv[0], argv[1], argv[2], argv[3], argv[4] };
+            VERIFY_ARE_EQUAL(0, targeted.ParseArgs(winrt::array_view<const winrt::hstring>{ targetArgs }));
+            VERIFY_IS_TRUE(targeted.GetBackground());
+            VERIFY_IS_TRUE(targeted.GetTargetWindow() == winrt::to_string(target));
+        }
+        {
+            const wchar_t* payload[] = { L"wt.exe", L"new-tab", L"cmd", L"--background" };
+            const wchar_t* name[] = { L"wt.exe", L"-w", L"--background", L"new-tab" };
+            VERIFY_IS_FALSE(IsBackgroundInvocation(4, payload));
+            VERIFY_IS_FALSE(IsBackgroundInvocation(4, name));
+        }
         const auto parse = [](AppCommandlineArgs& appArgs, std::vector<winrt::hstring> args) {
             const auto result = appArgs.ParseArgs(winrt::array_view<const winrt::hstring>{ args });
             Log::Comment(NoThrowString().Format(L"Exit Message:\n%hs", appArgs._exitMessage.c_str()));

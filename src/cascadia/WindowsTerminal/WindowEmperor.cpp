@@ -146,7 +146,7 @@ static Handoff deserializeHandoffPayload(const uint8_t* beg, const uint8_t* end)
 
 // Either acquires unique ownership over the given `className` mutex,
 // or attempts to pass the commandline to the existing instance.
-static wil::unique_mutex acquireMutexOrAttemptHandoff(const wchar_t* className, int nCmdShow)
+static wil::unique_mutex acquireMutexOrAttemptHandoff(const wchar_t* className, int nCmdShow, bool background, DWORD& exitCode)
 {
     // If the process that owns the mutex has not finished creating the window yet,
     // FindWindowW will return nullptr. We'll retry a few times just in case.
@@ -177,12 +177,20 @@ static wil::unique_mutex acquireMutexOrAttemptHandoff(const wchar_t* className, 
 
             // Allow the existing instance to gain foreground rights.
             DWORD processId = 0;
-            if (GetWindowThreadProcessId(hwnd, &processId) && processId)
+            if (!background && GetWindowThreadProcessId(hwnd, &processId) && processId)
             {
                 AllowSetForegroundWindow(processId);
             }
 
-            if (SendMessageTimeoutW(hwnd, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&cds), SMTO_ABORTIFHUNG | SMTO_ERRORONEXIT, 5000, nullptr))
+            DWORD_PTR result = 0;
+            if (SendMessageTimeoutW(hwnd, WM_COPYDATA, 0, reinterpret_cast<LPARAM>(&cds), SMTO_ABORTIFHUNG | SMTO_ERRORONEXIT, 5000, &result))
+            {
+                exitCode = static_cast<DWORD>(result);
+                return {};
+            }
+            // Delivery may have occurred: never duplicate a background request
+            // or turn an uncertain result into a missing-window fallback.
+            if (background)
             {
                 return {};
             }
@@ -354,12 +362,23 @@ void WindowEmperor::HandleCommandlineArgs(int nCmdShow)
 
     // Windows Terminal is a single-instance application. Either acquire ownership
     // over the mutex, or hand off the command line to the existing instance.
-    const auto mutex = acquireMutexOrAttemptHandoff(windowClassName.c_str(), nCmdShow);
+    TerminalApp::CommandlineArgs initialArgs;
+    initialArgs.Commandline(commandlineToArgArray(GetCommandLineW()));
+    DWORD handoffExitCode = ERROR_TIMEOUT;
+    const auto mutex = acquireMutexOrAttemptHandoff(windowClassName.c_str(), nCmdShow, initialArgs.Background(), handoffExitCode);
     if (!mutex)
     {
         // The command line has been handed off. We can now exit.
         // We do it with TerminateProcess() primarily to avoid WinUI shutdown issues.
-        TerminateProcess(GetCurrentProcess(), gsl::narrow_cast<UINT>(0));
+        TerminateProcess(GetCurrentProcess(), handoffExitCode);
+        __assume(false);
+    }
+
+    // No existing host owns this instance. Reject before initializing XAML,
+    // restoring persisted layouts, creating a window, or starting any payload.
+    if (initialArgs.Background())
+    {
+        TerminateProcess(GetCurrentProcess(), initialArgs.ExitCode() ? initialArgs.ExitCode() : ERROR_NOT_FOUND);
         __assume(false);
     }
 
@@ -578,7 +597,7 @@ void WindowEmperor::_dispatchSpecialKey(const MSG& msg) const
     window->OnDirectKeyEvent(vkey, scanCode, keyDown);
 }
 
-void WindowEmperor::_dispatchCommandline(winrt::TerminalApp::CommandlineArgs args)
+uint32_t WindowEmperor::_dispatchCommandline(winrt::TerminalApp::CommandlineArgs args)
 {
     _assertIsMainThread();
 
@@ -587,12 +606,12 @@ void WindowEmperor::_dispatchCommandline(winrt::TerminalApp::CommandlineArgs arg
     if (const auto msg = args.ExitMessage(); !msg.empty())
     {
         _showMessageBox(msg, exitCode != 0);
-        return;
+        return exitCode;
     }
 
     if (exitCode != 0)
     {
-        return;
+        return exitCode;
     }
 
     const auto parsedTarget = args.TargetWindow();
@@ -647,8 +666,16 @@ void WindowEmperor::_dispatchCommandline(winrt::TerminalApp::CommandlineArgs arg
             window = _mostRecentWindow();
             break;
         case WindowingMode::UseExisting:
+            if (args.Background())
+            {
+                // Resolve and dispatch on this thread without yielding. For
+                // background requests, 0/last means the most recent window
+                // across desktops; it must never create a replacement window.
+                window = _mostRecentWindow();
+                break;
+            }
             _dispatchCommandlineCurrentDesktop(std::move(args));
-            return;
+            return 0;
         default:
             break;
         }
@@ -660,20 +687,25 @@ void WindowEmperor::_dispatchCommandline(winrt::TerminalApp::CommandlineArgs arg
     }
     else
     {
+        if (args.Background())
+        {
+            return ERROR_NOT_FOUND;
+        }
         winrt::TerminalApp::WindowRequestedArgs request{ windowId, std::move(args) };
         request.WindowName(std::move(windowName));
         CreateNewWindow(std::move(request));
     }
+    return 0;
 }
 
-void WindowEmperor::_dispatchCommandlineCommon(winrt::array_view<const winrt::hstring> args, wil::zwstring_view currentDirectory, wil::zwstring_view envString, uint32_t showWindowCommand)
+uint32_t WindowEmperor::_dispatchCommandlineCommon(winrt::array_view<const winrt::hstring> args, wil::zwstring_view currentDirectory, wil::zwstring_view envString, uint32_t showWindowCommand)
 {
     winrt::TerminalApp::CommandlineArgs c;
     c.Commandline(args);
     c.CurrentDirectory(currentDirectory);
     c.CurrentEnvironment(envString);
     c.ShowWindowCommand(showWindowCommand);
-    _dispatchCommandline(std::move(c));
+    return _dispatchCommandline(std::move(c));
 }
 
 // This is an implementation-detail of _dispatchCommandline().
@@ -1020,7 +1052,7 @@ LRESULT WindowEmperor::_messageHandler(HWND window, UINT const message, WPARAM c
             {
                 const auto handoff = deserializeHandoffPayload(static_cast<const uint8_t*>(cds->lpData), static_cast<const uint8_t*>(cds->lpData) + cds->cbData);
                 const auto argv = commandlineToArgArray(handoff.args.c_str());
-                _dispatchCommandlineCommon(argv, handoff.cwd, handoff.env, handoff.show);
+                return _dispatchCommandlineCommon(argv, handoff.cwd, handoff.env, handoff.show);
             }
             return 0;
         case WM_HOTKEY:

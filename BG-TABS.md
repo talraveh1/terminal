@@ -1,8 +1,18 @@
 # Windows Terminal background tabs
 
-Milestone 1 built and installed successfully with VS 2026 on 2026-10-23. The background-tab patch is unchanged, and the repository's v145 build setting is restored. Five headless checks of the installed command-line parser passed. Launcher changes and window/input tests remain deferred. Brooke owns the independent review.
+Dev **0.0.2.0** was built and registered on 2026-10-23 with a separate existing-window-only patch on top of PR #20734. A background request never creates a Dev window. Brooke owns the independent review; existing-window foreground, input, restore and Open checks remain unverified because no user Dev window was open at qualification time.
 
-## Build and installation evidence
+## Existing-window-only patch and evidence
+
+Missing targets return **1168 (`ERROR_NOT_FOUND`)** before any window or payload is created, whether there is no Dev host or the running host cannot resolve the target. IDs and names retain exact targeting; background `0`/`last` resolves the most recent Dev window across desktops synchronously, without the current-desktop coroutine's creation fallback. Ordinary requests retain their previous routing. Handoff suppresses foreground permission for background requests and propagates the result through `WM_COPYDATA` and the `wtd` shim. An uncertain handoff returns a different error, never the safe-to-retry missing-target code. The shim waits only for global background requests, not for ordinary windows or payload arguments named `--background`.
+
+The incremental VS 2026 Release x64 package build passed in **51.37 seconds**, BelowNormal with `/m:6`, `/nr:false` and `CL_MPCount=1`. Local logs are `bg-artifacts/build-existing-full.log`, `build-existing.binlog` and `build-existing-result.json`. Artifact: `bg-artifacts/packages-existing/CascadiaPackage_0.0.2.0_x64_Test/CascadiaPackage_0.0.2.0_x64.msix`. Unsigned registration upgraded Dev to **WindowsTerminalDev_0.0.2.0_x64__8wekyb3d8bbwe** from the fresh layout `D:\forks\terminal\bg-artifacts\loose-existing-0.0.2.0`; keep that directory while registered. Stable remained **1.25.2733.0**, with its process and settings untouched.
+
+Use the package-specific alias `%LOCALAPPDATA%\Microsoft\WindowsApps\WindowsTerminalDev_8wekyb3d8bbwe\wtd.exe`, not the loose `wtd.exe`. Four cold-host checks through this alias (`-w 0`, `last`, `2147483646`, `missing-bg-0f95`, followed by `--background new-tab`) each returned 1168 in 0.19–0.25 seconds. The recorder observed no new Terminal window, no payload receipt, and no surviving Dev host. Transient request/host processes are expected and exited; this is not proof of existing-window dispatch. Records and the bounded checker are retained in `bg-artifacts/existing-only-result.json`, `post-headless-hosts.json` and `check-existing-only.py`.
+
+Eight compiled shim-parser assertions passed. `CommandlineTest::TestBackground` now covers numeric, last and named targeting plus shell/window-name lookalikes; the WEX suite was not run. The agents launcher additionally passed 34 headless launcher/health/integration tests and 87 mocked focus cases. Missing-window fallback retries stable exactly once with the original payload; other Dev errors do not retry. During future rebases, retain this separate guard/exit-propagation commit together with the upstream background patch, and rerun the cold-host checks before allowing fallback on 1168.
+
+## Earlier 0.0.1.0 build and installation evidence
 
 The Release x64 Dev build completed on its first VS 2026 attempt in **12 minutes 15 seconds**, including dependency restore; MSBuild reported **12 minutes 7.80 seconds, 132 warnings and zero errors**. It ran at BelowNormal priority with `/m:6`, `/nr:false`, `CL_MPCount=1` and `VCPKG_MAX_CONCURRENCY=6`. The wrapper and evidence are retained locally in ignored `bg-artifacts/build-vs18.ps1`, `build-vs18-1-result.json`, `build-vs18-1-full.log` and `build-vs18-1.binlog`.
 
@@ -80,26 +90,26 @@ The target and unsigned-MSIX-to-loose-layout procedure follow [doc/building.md](
 
 ## Install side by side
 
-The Dev manifest uses package name **WindowsTerminalDev**, display name **Windows Terminal Dev**, and execution alias **wtd.exe**. Stable remains **Microsoft.WindowsTerminal** with **wt.exe**. Dev also uses its own settings. Do not replace the stable manifest, change the default terminal, or change the stable settings. Existing-window routing is separated by branding: the destination must be an existing **Dev** window, not the installed stable window. A first Dev window must therefore be created in a later authorized window-testing stage; `--background` is not proof of a hidden first-window launch.
+The Dev manifest uses package name **WindowsTerminalDev**, display name **Windows Terminal Dev**, and execution alias **wtd.exe**. Stable remains **Microsoft.WindowsTerminal** with **wt.exe**. Dev also uses its own settings. Do not replace the stable manifest, change the default terminal, or change the stable settings. Existing-window routing is separated by branding: the user opens one **Dev** window manually and normally keeps it minimized. Background requests never create it; the launcher uses stable if no Dev window exists.
 
 Inspect the generated package before registration. Run in the same PowerShell 7 developer environment. The artifact folder below must be new; stop rather than overwrite an existing loose deployment. Keep it on disk while registered.
 
 ```powershell
-$env:LIFETIME='ATTACHED'; $bgPackages = @(Get-ChildItem D:\forks\terminal\bg-artifacts\packages -Recurse -File -Filter '*.msix')
+$env:LIFETIME='ATTACHED'; $bgPackages = @(Get-ChildItem D:\forks\terminal\bg-artifacts\packages-existing -Recurse -File -Filter '*.msix')
 $env:LIFETIME='ATTACHED'; if ($bgPackages.Count -ne 1) { throw 'Select the one newly built x64 Dev MSIX explicitly' }
-$env:LIFETIME='ATTACHED'; $bgLoose = 'D:\forks\terminal\bg-artifacts\loose'
+$env:LIFETIME='ATTACHED'; $bgLoose = 'D:\forks\terminal\bg-artifacts\loose-next-build'
 $env:LIFETIME='ATTACHED'; if (Test-Path -LiteralPath $bgLoose) { throw 'Loose deployment directory already exists; choose a fresh directory' }
 $env:LIFETIME='ATTACHED'; & 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe' unpack /p $bgPackages[0].FullName /d $bgLoose
 $env:LIFETIME='ATTACHED'; if ($LASTEXITCODE -ne 0) { throw 'MSIX extraction failed' }
 $env:LIFETIME='ATTACHED'; $bgManifest = Join-Path $bgLoose 'AppxManifest.xml'; [xml]$bgXml = Get-Content -LiteralPath $bgManifest
 $env:LIFETIME='ATTACHED'; if ($bgXml.Package.Identity.Name -ne 'WindowsTerminalDev') { throw 'Refusing a non-Dev package' }
 $env:LIFETIME='ATTACHED'; $bgXml.Package.Identity; $bgXml.Package.Dependencies; Select-String -LiteralPath $bgManifest -Pattern 'wtd.exe'
-$env:LIFETIME='ATTACHED'; if (Get-AppxPackage -Name WindowsTerminalDev) { throw 'A Dev package already exists; preserve its data and identify its owner first' }
+$env:LIFETIME='ATTACHED'; $bgCurrent = Get-AppxPackage -Name WindowsTerminalDev; if ($bgCurrent -and [version]$bgXml.Package.Identity.Version -le [version]$bgCurrent.Version) { throw 'Increment the Dev manifest version before upgrading' }
 $env:LIFETIME='ATTACHED'; Add-AppxPackage -Register $bgManifest -ErrorAction Stop
 $env:LIFETIME='ATTACHED'; Get-AppxPackage -Name WindowsTerminalDev | Select-Object Name,Version,PackageFullName,InstallLocation
 ```
 
-If an existing Dev package is listed, stop to preserve its settings and identify its owner before replacing it; do not force shutdown or uninstall it blindly. Dependencies must satisfy the generated manifest. This machine currently has x64 `Microsoft.VCLibs.140.00` 14.0.33519.0, `Microsoft.VCLibs.140.00.UWPDesktop` 14.0.33728.0 and `Microsoft.UI.Xaml.2.8` 8.2511.26001.0. If registration reports a missing/newer framework, use the matching signed x64 dependency from the build's `Dependencies\x64` output via `Add-AppxPackage -Path <exact dependency file>` before retrying; don't substitute another architecture. Registration itself does not launch Terminal.
+For an approved upgrade, increment the Dev manifest version and register a fresh layout under the same package identity, preserving package data. Require the user to close Dev windows first; never force shutdown or uninstall to bypass a running process. Dependencies must satisfy the generated manifest. This machine currently has x64 `Microsoft.VCLibs.140.00` 14.0.33519.0, `Microsoft.VCLibs.140.00.UWPDesktop` 14.0.33728.0 and `Microsoft.UI.Xaml.2.8` 8.2511.26001.0. If registration reports a missing/newer framework, use the matching signed x64 dependency from the build's `Dependencies\x64` output via `Add-AppxPackage -Path <exact dependency file>` before retrying; don't substitute another architecture. Registration itself does not launch Terminal.
 
 The selected route uses an unsigned MSIX only as a transport to a loose layout. **Do not pass that unsigned MSIX directly to `Add-AppxPackage -Path`.** Direct MSIX installation is a different route requiring signing and machine trust; certificate installation and any Developer Mode changes belong to the user. The present route needs neither a new certificate nor a machine-setting change.
 
