@@ -1,26 +1,18 @@
 # Windows Terminal background tabs
 
-Milestone 1 stopped after two build attempts on 2026-10-23; no installable Terminal package was produced. All seven requested VS components are installed. No Dev package was registered, no Terminal window was opened, and the agents launcher and stable Terminal settings were unchanged. Brooke owns the independent review. The milestone 0 inventory below is historical; build and installation commands remain instructions, not evidence of a successful installation.
+Milestone 1 built and installed successfully with VS 2026 on 2026-10-23. The background-tab patch is unchanged, and the repository's v145 build setting is restored. Five headless checks of the installed command-line parser passed. Launcher changes and window/input tests remain deferred. Brooke owns the independent review.
 
-## Milestone 1 build result
+## Build and installation evidence
 
-The checkout/remotes guide update was pushed to the user's fork as `732eb9ed0`. The build ran in PowerShell 7 using the VS 2022 developer environment, the two NuGet restores from `Invoke-OpenConsoleBuild`, and MSBuild on `OpenConsole.slnx` targeting `Terminal\CascadiaPackage`. Both attempts ran at BelowNormal priority with `/m:6`, `/nr:false`, `/p:CL_MPCount=1`, Release x64, Dev branding and unsigned MSIX packaging. Sampled compiler/MSBuild processes were BelowNormal. No simultaneous second build was started, and no build process remained afterward.
+The Release x64 Dev build completed on its first VS 2026 attempt in **12 minutes 15 seconds**, including dependency restore; MSBuild reported **12 minutes 7.80 seconds, 132 warnings and zero errors**. It ran at BelowNormal priority with `/m:6`, `/nr:false`, `CL_MPCount=1` and `VCPKG_MAX_CONCURRENCY=6`. The wrapper and evidence are retained locally in ignored `bg-artifacts/build-vs18.ps1`, `build-vs18-1-result.json`, `build-vs18-1-full.log` and `build-vs18-1.binlog`.
 
-Attempt 1 took **97.568 seconds** including restore. Dependency setup failed because `dep/vcpkg-overlay-triplets/x64-windows-static.cmake` pinned `VCPKG_PLATFORM_TOOLSET v145`, unavailable in VS 2022. The single-line setup correction changes that x64 triplet to **v143**; the PR's code is unchanged. Attempt 2 took **355.818 seconds** including cached restore (**350.53 seconds** reported by MSBuild). Dependency builds succeeded, but the Settings Editor XAML compilation failed:
+The unsigned artifact is `bg-artifacts/packages/CascadiaPackage_0.0.1.0_x64_Test/CascadiaPackage_0.0.1.0_x64.msix`. It was extracted and registered from `D:\forks\terminal\bg-artifacts\loose\AppxManifest.xml`. The installed identity is **WindowsTerminalDev_0.0.1.0_x64__8wekyb3d8bbwe**, version **0.0.1.0**. Its launcher is `D:\forks\terminal\bg-artifacts\loose\wtd.exe`; its registered alias is `C:\Users\trax7\AppData\Local\Microsoft\WindowsApps\wtd.exe`. Keep the loose directory in place while installed.
 
-```text
-C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\XamlCompiler\Microsoft.Windows.UI.Xaml.Common.targets(354,5):
-Xaml Internal Error error WMC9999: Value cannot be null.
-Parameter name: name
-Project: src\cascadia\TerminalSettingsEditor\Microsoft.Terminal.Settings.Editor.vcxproj
-Target: MarkupCompilePass1
-```
+The ordinary executable help path can display a message box, so it was not invoked. Instead, a finite `pythonw.exe` process under the Dev package identity activated only `TerminalApp.CommandlineArgs` from the installed `TerminalApp.dll`. The checks confirmed ordinary new-tab parsing, `--background new-tab`, `-w 0 --background`, rejection of `--background split-pane`, and help containing `--background`. Evidence is in `bg-artifacts/check-parser.py`, `parser-result.json` and `parser-help.txt`; the process exited. No Terminal window or shell payload was started. This verifies parser acceptance, not window-focus behavior.
 
-The subsequent `Microsoft.DesktopBridge.targets(499,5)` error `MSB4181: The "MSBuild" task returned false but did not log an error` is a consequence, not the first failure. Final MSBuild totals were **5 warnings, 2 errors**. The cause of the XAML compiler's null value is not established. The two-attempt limit was reached; no third build or installation was attempted. Completing this build with the current setup may require further toolchain investigation.
+## Earlier build evidence
 
-Local evidence under `D:\forks\terminal\bg-artifacts`: `build-1.binlog`, `build-2.binlog`, `build-1-result.json`, `build-2-result.json`, and `build-2-full.log` (diagnostic text replayed from the second binary log). The `.log` PowerShell transcripts record wrapper output only; use the `.binlog` files for authoritative build output. Build artifacts and logs are excluded locally through `.git/info/exclude`, not committed. `build.ps1` retains the exact second-attempt commands. The Dev executable/alias and `--background` acceptance could not be verified because no package was built. The ordinary `--help` path calls `MessageBoxW`, so it must not be used for a no-window check. A parser-only check would be needed after a successful build.
-
-The installed stable package remained `Microsoft.WindowsTerminal_1.25.2733.0_x64__8wekyb3d8bbwe`. Its settings SHA-256 before and after this work was `F9FD2A0B6D77F497D6B149C0B0E01DA5AC51888634EA2DEC9109185F9C459986`.
+The earlier VS 2022 attempt failed in the Settings Editor XAML compiler with `WMC9999: Value cannot be null. Parameter name: name`, followed by the packaging error `MSB4181`. Its logs and timing records remain in `bg-artifacts/build-1*` and `bg-artifacts/build-2*`. Those attempts produced no Dev installation. Use VS 2026 for this branch.
 
 ## Source and branch
 
@@ -41,52 +33,11 @@ The only [inline request](https://github.com/microsoft/terminal/pull/20734#discu
 
 Upstream's [AI policy](https://github.com/microsoft/terminal/blob/main/AGENTS.md) permits non-public local experiments but restricts AI-authored public comments. The draft below stays local; it is not an instruction to post it verbatim.
 
-## Historical milestone 0 toolchain inventory and user steps
+## Required toolchain
 
-Read-only evidence: `vswhere -all -products '*' -format json`, instance `e6e6f067`, plus the installer's `state.json`, `state.packages.json` and `catalog.json` under `C:\ProgramData\Microsoft\VisualStudio\Packages\_Instances\e6e6f067`. Catalog English labels below match this installed VS release. The inventory was also compared with this checkout's `.vsconfig`; no installer was launched.
+This 1.25 build requires **Visual Studio Community 2026 18.11.1** at `C:\Program Files\Microsoft Visual Studio\18\Community`, with the repository's **v145** toolset (MSVC 14.51.36231). Use VS 18 explicitly when VS 2022 is also installed. Keep the repository's v145 dependency triplet unchanged.
 
-Present: Visual Studio Community 2022 **17.14.42** (`17.14.37806.7`); Desktop development with C++ (`Microsoft.VisualStudio.Workload.NativeDesktop`); MSVC v143 x64/x86 (`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`, compiler directory `14.44.35207`); Windows 11 SDK **10.0.26100.0** (`Microsoft.VisualStudio.Component.Windows11SDK.26100`); MSBuild; NuGet; PowerShell **7.6.7**. Standalone .NET SDKs **10.0.401/10.0.402** and .NET 8 runtime/Windows Desktop runtime **8.0.32** are present, although the VS component records for .NET SDK and .NET 8 runtime are absent.
-
-1. Open Visual Studio Installer yourself, choose **Modify** on Community 2022, and select **WinUI application development** (`Microsoft.VisualStudio.Workload.Universal`). This is the current installer label for the workload called Universal Windows Platform Development in Terminal's README.
-2. In its installation details / Individual components, select **Universal Windows Platform tools** (`Microsoft.VisualStudio.ComponentGroup.UWP.Support`), **C++ (v143) Universal Windows Platform tools** (`Microsoft.VisualStudio.ComponentGroup.UWP.VC`) and **MSIX Packaging Tools** (`Microsoft.VisualStudio.ComponentGroup.MSIX.Packaging`). All are absent. The installer resolves their dependencies, including ARM tool entries its UWP group requires even when our target is x64. `Microsoft.DesktopBridge.props` and the VCLibs extension SDK are currently absent on disk.
-3. Include **.NET Framework 4.8 SDK** (`Microsoft.Net.Component.4.8.SDK`) and **.NET Framework 4.7.2 targeting pack** (`Microsoft.Net.Component.4.7.2.TargetingPack`), both absent. The latter is used by solution test projects; **.NET Framework 4.8 targeting pack** (`Microsoft.Net.Component.4.8.TargetingPack`) is also absent and requested by `.vsconfig`. Install it with the workload configuration. No .NET Framework reference-assembly directory exists for these targets today.
-4. Keep Windows SDK **26100** selected. No required Windows SDK is missing: both native and packaging project properties target 26100. `.vsconfig` still lists SDK **22621**, which is absent but is not the SDK this source actually targets; importing that file verbatim would install it unnecessarily for this build.
-5. Developer Mode is already enabled: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock\AllowDevelopmentWithoutDevLicense=1`. Leave it as it is. The chosen loose-package registration below requires Developer Mode and requires no signing certificate. Installing an MSIX directly instead requires a valid signature trusted by the machine, even with Developer Mode enabled; that alternative would require the user to create/trust a certificate whose subject matches the manifest publisher. No certificate was created, trusted or selected here. See [Microsoft's deployment guidance](https://learn.microsoft.com/en-us/windows/apps/dev-tools/winapp-cli/security#developer-mode).
-
-The following is the **complete 30-entry difference against `.vsconfig`**, not a claim that all 30 are independent requirements for an x64 Terminal package. IDE tools, managed templates and other architectures account for much of the difference. The three .NET runtime/SDK facts above distinguish VS component registration from software actually available on the machine.
-
-| Missing VS component ID                                                   | Installed-catalog label / relevance                        |
-| :------------------------------------------------------------------------ | :--------------------------------------------------------- |
-| Microsoft.VisualStudio.Component.SQL.LocalDB.Runtime                      | SQL Server Express 2019 LocalDB; IDE/config extra          |
-| Microsoft.VisualStudio.Component.SQL.CLR                                  | CLR data types for SQL Server; IDE/config extra            |
-| Microsoft.Net.Component.4.8.SDK                                           | .NET Framework 4.8 SDK                                     |
-| Microsoft.Net.Component.4.7.2.TargetingPack                               | .NET Framework 4.7.2 targeting pack; solution tests        |
-| Microsoft.NetCore.Component.Runtime.8.0                                   | .NET 8 runtime; standalone 8.0.32 already present          |
-| Microsoft.NetCore.Component.SDK                                           | .NET SDK; standalone SDK 10 already present                |
-| Microsoft.VisualStudio.Component.AppInsights.Tools                        | Developer Analytics tools; IDE/config extra                |
-| Microsoft.Net.Component.4.8.TargetingPack                                 | .NET Framework 4.8 targeting pack                          |
-| Microsoft.VisualStudio.Component.DiagnosticTools                          | .NET profiling tools; IDE/config extra                     |
-| Microsoft.VisualStudio.Component.ClassDesigner                            | Class Designer; IDE/config extra                           |
-| Microsoft.VisualStudio.Component.GraphDocument                            | DGML editor; IDE/config extra                              |
-| Microsoft.VisualStudio.Component.CodeMap                                  | Code Map; IDE/config extra                                 |
-| Microsoft.VisualStudio.Component.Windows11SDK.22621                       | Windows SDK 22621; actual source uses installed 26100      |
-| Microsoft.VisualStudio.ComponentGroup.MSIX.Packaging                      | MSIX Packaging Tools                                       |
-| Microsoft.VisualStudio.ComponentGroup.WindowsAppSDK.Cs                    | Windows App SDK C# Templates                               |
-| Microsoft.ComponentGroup.Blend                                            | Blend for Visual Studio                                    |
-| Microsoft.VisualStudio.ComponentGroup.ArchitectureTools.Native            | Architecture tools for C++                                 |
-| Microsoft.Component.NetFX.Native                                          | .NET Native                                                |
-| Microsoft.VisualStudio.Component.Graphics                                 | Image and 3D model editors                                 |
-| Microsoft.VisualStudio.ComponentGroup.UWP.Xamarin                         | Universal Windows Platform tools for Xamarin               |
-| Microsoft.VisualStudio.ComponentGroup.UWP.Support                         | Universal Windows Platform tools                           |
-| Microsoft.VisualStudio.Component.VC.Tools.ARM64EC                         | MSVC v143 ARM64EC build tools                              |
-| Microsoft.VisualStudio.Component.UWP.VC.ARM64EC                           | C++ UWP v143 ARM64EC support                               |
-| Microsoft.VisualStudio.Component.VC.Tools.ARM64                           | MSVC v143 ARM64/ARM64EC build tools                        |
-| Microsoft.VisualStudio.Component.UWP.VC.ARM64                             | C++ UWP v143 ARM64/ARM64EC support                         |
-| Microsoft.VisualStudio.Component.VC.Tools.ARM                             | MSVC v143 ARM build tools                                  |
-| Microsoft.VisualStudio.ComponentGroup.UWP.VC                              | C++ (v143) Universal Windows Platform tools                |
-| Microsoft.VisualStudio.ComponentGroup.WindowsAppDevelopment.Prerequisites | .NET WinUI app development prerequisites                   |
-| Microsoft.VisualStudio.ComponentGroup.UWP.NetCoreAndStandard              | .NET Native and .NET Standard                              |
-| Microsoft.VisualStudio.Workload.Universal                                 | WinUI application development                              |
+Installed prerequisites are Desktop development with C++, WinUI application development, C++ UWP tools, UWP support, MSIX Packaging Tools, .NET Framework 4.8 SDK and the required .NET Framework targeting packs. Windows SDK **10.0.26100.0** and PowerShell 7 are installed. Developer Mode is on; unsigned loose-package registration requires no new signing certificate. Direct installation of an MSIX would require a trusted signature instead.
 
 ## Rebase onto the next stable release
 
@@ -106,22 +57,28 @@ Choose a fresh backup-branch name on later updates. If conflicts occur, preserve
 
 ## Build and package
 
-The following is a source-derived procedure, not a successful build transcript. The initial build downloads dependencies and can take substantial CPU, disk space and time; warn the user before starting and wait for it to finish. Do not run a stress test or a windowed test as part of this step. Use x64 Release optimization with **Dev branding**; `Configuration=Release` does not mean `WindowsTerminalBranding=Release`.
+The following reproduces the successful build's restore sequence and MSBuild arguments. An initial build downloads dependencies and can take substantial CPU, disk space and time; warn the user before starting and wait for it to finish. Do not run a stress test or a windowed test as part of this step. Use x64 Release optimization with **Dev branding**; `Configuration=Release` does not mean `WindowsTerminalBranding=Release`. Use fresh log names when preserving an earlier build's evidence.
 
 `tools/OpenConsole.psm1` requires PowerShell 7. `Set-MsBuildDevEnvironment` selects VS with x86/x64 C++ tools, loads its developer shell into the current process, and can download the VSSetup PowerShell module into this checkout. `Invoke-OpenConsoleBuild` restores the solution and global NuGet dependencies, then forwards its arguments to MSBuild. It does not check each restore's exit code before continuing, so inspect restore output as well as the final build result.
 
 ```powershell
 $env:LIFETIME='ATTACHED'; Set-Location D:\forks\terminal
+$env:LIFETIME='ATTACHED'; [Diagnostics.Process]::GetCurrentProcess().PriorityClass = 'BelowNormal'
+$env:LIFETIME='ATTACHED'; $env:MSBUILDDISABLENODEREUSE = '1'; $env:CL_MPCount = '1'; $env:VCPKG_MAX_CONCURRENCY = '6'
 $env:LIFETIME='ATTACHED'; git submodule update --init --recursive
-$env:LIFETIME='ATTACHED'; Import-Module .\tools\OpenConsole.psm1
-$env:LIFETIME='ATTACHED'; Set-MsBuildDevEnvironment
-$env:LIFETIME='ATTACHED'; Invoke-OpenConsoleBuild '/t:Terminal\CascadiaPackage' '/p:Configuration=Release' '/p:Platform=x64' '/p:WindowsTerminalBranding=Dev' '/p:AppxPackageSigningEnabled=false' '/p:AppxBundle=Never' '/p:AppxSymbolPackageEnabled=false' '/p:GenerateAppxPackageOnBuild=true' '/p:AppxPackageDir=D:\forks\terminal\bg-artifacts\packages\' '/m:6' '/nr:false' '/p:CL_MPCount=1' '/bl:D:\forks\terminal\bg-build.binlog'
+$env:LIFETIME='ATTACHED'; Import-Module 'C:\Program Files\Microsoft Visual Studio\18\Community\Common7\Tools\Microsoft.VisualStudio.DevShell.dll'
+$env:LIFETIME='ATTACHED'; Enter-VsDevShell -VsInstallPath 'C:\Program Files\Microsoft Visual Studio\18\Community' -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+$env:LIFETIME='ATTACHED'; & .\dep\nuget\nuget.exe restore .\OpenConsole.slnx -NonInteractive -DisableParallelProcessing -MSBuildPath 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\amd64'
+$env:LIFETIME='ATTACHED'; if ($LASTEXITCODE -ne 0) { throw 'Solution restore failed' }
+$env:LIFETIME='ATTACHED'; & .\dep\nuget\nuget.exe restore .\dep\nuget\packages.config -NonInteractive -DisableParallelProcessing -MSBuildPath 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\amd64'
+$env:LIFETIME='ATTACHED'; if ($LASTEXITCODE -ne 0) { throw 'Global dependency restore failed' }
+$env:LIFETIME='ATTACHED'; & 'C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\amd64\MSBuild.exe' .\OpenConsole.slnx '/t:Terminal\CascadiaPackage' '/p:Configuration=Release' '/p:Platform=x64' '/p:WindowsTerminalBranding=Dev' '/p:AppxPackageSigningEnabled=false' '/p:AppxBundle=Never' '/p:AppxSymbolPackageEnabled=false' '/p:GenerateAppxPackageOnBuild=true' '/p:AppxPackageDir=D:\forks\terminal\bg-artifacts\packages\' '/m:6' '/nr:false' '/p:CL_MPCount=1' '/bl:D:\forks\terminal\bg-artifacts\bg-build.binlog' '/verbosity:minimal' '/fl' '/flp:logfile=D:\forks\terminal\bg-artifacts\bg-build.log;verbosity=normal'
 $env:LIFETIME='ATTACHED'; if ($LASTEXITCODE -ne 0) { throw 'Terminal build failed; do not install' }
 ```
 
-The target and unsigned-MSIX-to-loose-layout procedure follow [doc/building.md](doc/building.md). Run the build process at BelowNormal priority and limit project concurrency to six with compiler parallelism set to one; do not run other build/test floods concurrently. A solution-wide build can omit `/t:Terminal\CascadiaPackage`, but that also brings in unrelated tools and tests. No C++ compilation or test execution occurred in milestone 0, including the PR's `CommandlineTest::TestBackground` cases.
+The target and unsigned-MSIX-to-loose-layout procedure follow [doc/building.md](doc/building.md). Run the build process at BelowNormal priority and limit project concurrency to six with compiler parallelism set to one; do not run another build concurrently. A solution-wide build can omit `/t:Terminal\CascadiaPackage`, but that also brings in unrelated tools and tests. The PR's `CommandlineTest::TestBackground` suite was not run; the installed parser checks above provide the bounded verification for milestone 1.
 
-## Install side by side after build approval
+## Install side by side
 
 The Dev manifest uses package name **WindowsTerminalDev**, display name **Windows Terminal Dev**, and execution alias **wtd.exe**. Stable remains **Microsoft.WindowsTerminal** with **wt.exe**. Dev also uses its own settings. Do not replace the stable manifest, change the default terminal, or change the stable settings. Existing-window routing is separated by branding: the destination must be an existing **Dev** window, not the installed stable window. A first Dev window must therefore be created in a later authorized window-testing stage; `--background` is not proof of a hidden first-window launch.
 
