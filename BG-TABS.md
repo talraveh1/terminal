@@ -1,15 +1,15 @@
 # Windows Terminal background tabs
 
-Milestone 0, prepared 2026-10-22. This is a local preparation branch, not a tested binary. No build, installation, desktop probe, settings change, certificate operation or GitHub write was performed. Brooke owns the independent review. Warn the user before the next turn's full Terminal build; launcher integration and window/input qualification follow later.
+Milestone 0, prepared 2026-10-22; milestone 1 authorized 2026-10-23. The preparation findings below are historical. All seven requested VS components are now installed; the build and side-by-side registration are authorized, while launcher changes and window tests remain deferred. This is a local preparation branch, not a tested binary. No build, installation, desktop probe, settings change, certificate operation or GitHub write was performed. Brooke owns the independent review. Warn the user before the next turn's full Terminal build; launcher integration and window/input qualification follow later.
 
 ## Source and branch
 
-- Checkout: `D:\src\terminal`, branch `bg-tabs-1.25`.
+- Checkout: `D:\forks\terminal`, branch `bg-tabs-1.25`.
 - Stable base: tag `v1.25.2733.0`, commit `dc8ae365847d41f62d1ebca93815bb00959bc12f`.
 - Upstream: [PR #20734](https://github.com/microsoft/terminal/pull/20734), NathanSweet, commit `c3edbcb12f276dfde3b3c0b6679b10b21b3b21ab`.
 - Local cherry-pick: `beba5f596787599eb628d65cbf5beb874286581d`, 12 files, 200 insertions and 20 deletions. Cherry-picked with `-x`; no conflicts and no manual source edits. The subsequent documentation commit is separate.
 - `git range-diff` shows only the added cherry-pick provenance and an unchanged context line in `TerminalPage.h` that differs between main and stable. A whitespace check with `core.whitespace=cr-at-eol` passes; the ordinary check treats the repository's committed CRLF line endings as trailing whitespace.
-- Local tag `bg-tabs-base` records the base for the next rebase. Nothing was pushed.
+- Local tag `bg-tabs-base` records the base for the next rebase. The branch is published to the user fork. Remote `origin` is `https://github.com/talraveh1/terminal.git`; remote `upstream` is `https://github.com/microsoft/terminal.git`. Fetch stable tags from `upstream` and push this branch only to `origin` using `git push origin bg-tabs-1.25`. A future rebase rewrites published history: publish it under a fresh fork branch unless a history-replacing push has separately been authorized.
 
 ## Upstream review and local decision
 
@@ -21,7 +21,7 @@ The only [inline request](https://github.com/microsoft/terminal/pull/20734#discu
 
 Upstream's [AI policy](https://github.com/microsoft/terminal/blob/main/AGENTS.md) permits non-public local experiments but restricts AI-authored public comments. The draft below stays local; it is not an instruction to post it verbatim.
 
-## Toolchain inventory and user steps
+## Historical milestone 0 toolchain inventory and user steps
 
 Read-only evidence: `vswhere -all -products '*' -format json`, instance `e6e6f067`, plus the installer's `state.json`, `state.packages.json` and `catalog.json` under `C:\ProgramData\Microsoft\VisualStudio\Packages\_Instances\e6e6f067`. Catalog English labels below match this installed VS release. The inventory was also compared with this checkout's `.vsconfig`; no installer was launched.
 
@@ -73,9 +73,9 @@ The following is the **complete 30-entry difference against `.vsconfig`**, not a
 Use PowerShell 7. Replace the example new tag with the exact new stable release and independently verify its commit before rebasing. Start with a clean worktree. Keep the old branch until the new binary has passed qualification. These commands are instructions for a future update, not actions performed during preparation.
 
 ```powershell
-$env:LIFETIME='ATTACHED'; Set-Location D:\src\terminal
+$env:LIFETIME='ATTACHED'; Set-Location D:\forks\terminal
 $env:LIFETIME='ATTACHED'; git status --short
-$env:LIFETIME='ATTACHED'; git fetch origin --tags
+$env:LIFETIME='ATTACHED'; git fetch upstream --tags
 $env:LIFETIME='ATTACHED'; $bgNewTag = 'v1.NEXT.RELEASE.0'
 $env:LIFETIME='ATTACHED'; git rev-parse "$bgNewTag^{commit}"
 $env:LIFETIME='ATTACHED'; git branch bg-tabs-before-next-stable bg-tabs-1.25
@@ -84,22 +84,22 @@ $env:LIFETIME='ATTACHED'; git rebase --onto $bgNewTag bg-tabs-base bg-tabs-1.25
 
 Choose a fresh backup-branch name on later updates. If conflicts occur, preserve the new stable release's surrounding behavior while porting the background flag, command forwarding, non-selected tab layout/startup and show-window suppression together. Stage only resolved files and use `git rebase --continue`; use `git rebase --abort` to return to the original branch. If upstream already includes the feature, compare it and drop the duplicate patch rather than applying it twice. After the rebase succeeds, inspect the diff/range-diff against the saved branch, update this guide's base and run the focused build/tests and later window/input qualification. Only after accepting the result move `bg-tabs-base` to the verified new tag with `git tag -f bg-tabs-base $bgNewTag`. Keep documentation and any later functional adjustments in separate commits. Do not push to microsoft/terminal.
 
-## Build and package in the next authorized turn
+## Build and package
 
 The following is a source-derived procedure, not a successful build transcript. The initial build downloads dependencies and can take substantial CPU, disk space and time; warn the user before starting and wait for it to finish. Do not run a stress test or a windowed test as part of this step. Use x64 Release optimization with **Dev branding**; `Configuration=Release` does not mean `WindowsTerminalBranding=Release`.
 
 `tools/OpenConsole.psm1` requires PowerShell 7. `Set-MsBuildDevEnvironment` selects VS with x86/x64 C++ tools, loads its developer shell into the current process, and can download the VSSetup PowerShell module into this checkout. `Invoke-OpenConsoleBuild` restores the solution and global NuGet dependencies, then forwards its arguments to MSBuild. It does not check each restore's exit code before continuing, so inspect restore output as well as the final build result.
 
 ```powershell
-$env:LIFETIME='ATTACHED'; Set-Location D:\src\terminal
+$env:LIFETIME='ATTACHED'; Set-Location D:\forks\terminal
 $env:LIFETIME='ATTACHED'; git submodule update --init --recursive
 $env:LIFETIME='ATTACHED'; Import-Module .\tools\OpenConsole.psm1
 $env:LIFETIME='ATTACHED'; Set-MsBuildDevEnvironment
-$env:LIFETIME='ATTACHED'; Invoke-OpenConsoleBuild '/t:Terminal\CascadiaPackage' '/p:Configuration=Release' '/p:Platform=x64' '/p:WindowsTerminalBranding=Dev' '/p:AppxPackageSigningEnabled=false' '/p:AppxBundle=Never' '/p:AppxSymbolPackageEnabled=false' '/p:GenerateAppxPackageOnBuild=true' '/p:AppxPackageDir=D:\src\terminal\bg-artifacts\packages\' '/m:2' '/bl:D:\src\terminal\bg-build.binlog'
+$env:LIFETIME='ATTACHED'; Invoke-OpenConsoleBuild '/t:Terminal\CascadiaPackage' '/p:Configuration=Release' '/p:Platform=x64' '/p:WindowsTerminalBranding=Dev' '/p:AppxPackageSigningEnabled=false' '/p:AppxBundle=Never' '/p:AppxSymbolPackageEnabled=false' '/p:GenerateAppxPackageOnBuild=true' '/p:AppxPackageDir=D:\forks\terminal\bg-artifacts\packages\' '/m:6' '/nr:false' '/p:CL_MPCount=1' '/bl:D:\forks\terminal\bg-build.binlog'
 $env:LIFETIME='ATTACHED'; if ($LASTEXITCODE -ne 0) { throw 'Terminal build failed; do not install' }
 ```
 
-The target and unsigned-MSIX-to-loose-layout procedure follow [doc/building.md](doc/building.md). Limit project concurrency to two; do not run other build/test floods concurrently. A solution-wide build can omit `/t:Terminal\CascadiaPackage`, but that also brings in unrelated tools and tests. No C++ compilation or test execution occurred in milestone 0, including the PR's `CommandlineTest::TestBackground` cases.
+The target and unsigned-MSIX-to-loose-layout procedure follow [doc/building.md](doc/building.md). Run the build process at BelowNormal priority and limit project concurrency to six with compiler parallelism set to one; do not run other build/test floods concurrently. A solution-wide build can omit `/t:Terminal\CascadiaPackage`, but that also brings in unrelated tools and tests. No C++ compilation or test execution occurred in milestone 0, including the PR's `CommandlineTest::TestBackground` cases.
 
 ## Install side by side after build approval
 
@@ -108,9 +108,9 @@ The Dev manifest uses package name **WindowsTerminalDev**, display name **Window
 Inspect the generated package before registration. Run in the same PowerShell 7 developer environment. The artifact folder below must be new; stop rather than overwrite an existing loose deployment. Keep it on disk while registered.
 
 ```powershell
-$env:LIFETIME='ATTACHED'; $bgPackages = @(Get-ChildItem D:\src\terminal\bg-artifacts\packages -Recurse -File -Filter '*.msix')
+$env:LIFETIME='ATTACHED'; $bgPackages = @(Get-ChildItem D:\forks\terminal\bg-artifacts\packages -Recurse -File -Filter '*.msix')
 $env:LIFETIME='ATTACHED'; if ($bgPackages.Count -ne 1) { throw 'Select the one newly built x64 Dev MSIX explicitly' }
-$env:LIFETIME='ATTACHED'; $bgLoose = 'D:\src\terminal\bg-artifacts\loose'
+$env:LIFETIME='ATTACHED'; $bgLoose = 'D:\forks\terminal\bg-artifacts\loose'
 $env:LIFETIME='ATTACHED'; if (Test-Path -LiteralPath $bgLoose) { throw 'Loose deployment directory already exists; choose a fresh directory' }
 $env:LIFETIME='ATTACHED'; & 'C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x64\makeappx.exe' unpack /p $bgPackages[0].FullName /d $bgLoose
 $env:LIFETIME='ATTACHED'; if ($LASTEXITCODE -ne 0) { throw 'MSIX extraction failed' }
@@ -146,7 +146,7 @@ $env:LIFETIME='ATTACHED'; Remove-AppxPackage -Package $bgDev[0].PackageFullName 
 $env:LIFETIME='ATTACHED'; Get-AppxPackage -Name WindowsTerminalDev
 ```
 
-After confirming removal, the user may delete the exact loose-layout/artifact directory under `D:\src\terminal\bg-artifacts`; retain the source branch and binary log if wanted. No certificate needs removal for this route, and Developer Mode was pre-existing, so do not turn it off as cleanup. The stable package and its settings are independent.
+After confirming removal, the user may delete the exact loose-layout/artifact directory under `D:\forks\terminal\bg-artifacts`; retain the source branch and binary log if wanted. No certificate needs removal for this route, and Developer Mode was pre-existing, so do not turn it off as cleanup. The stable package and its settings are independent.
 
 ## Private draft comment, not posted
 
